@@ -1,7 +1,6 @@
 package com.harvey.digitalgarden.dto;
 
 import lombok.Data;
-import java.time.LocalDateTime;
 
 @Data
 public class CommentVO {
@@ -10,5 +9,5 @@ public class CommentVO {
     private String nickname;
     private String content;
     private String status;
-    private LocalDateTime createdAt;
+    private Long inDtm;
 }

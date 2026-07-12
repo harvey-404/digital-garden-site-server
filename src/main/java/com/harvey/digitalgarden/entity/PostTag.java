@@ -8,11 +8,9 @@ import org.hibernate.annotations.SQLRestriction;
 @Data
 @EqualsAndHashCode(callSuper = true)
 @Entity
-@Table(name = "post_like",
-        uniqueConstraints = @UniqueConstraint(name = "uk_post_visitor",
-                columnNames = {"post_id", "visitor_id"}))
+@Table(name = "post_tag", uniqueConstraints = @UniqueConstraint(name = "uq_post_tag_pair", columnNames = {"post_id", "tag_id"}))
 @SQLRestriction("is_deleted = 0")
-public class PostLike extends BaseEntity {
+public class PostTag extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -20,9 +18,6 @@ public class PostLike extends BaseEntity {
     @Column(name = "post_id", nullable = false)
     private Long postId = 0L;
 
-    @Column(name = "visitor_id", nullable = false, length = 128)
-    private String visitorId = "";
-
-    @Column(name = "ip_hash", nullable = false, length = 128)
-    private String ipHash = "";
+    @Column(name = "tag_id", nullable = false)
+    private Long tagId = 0L;
 }

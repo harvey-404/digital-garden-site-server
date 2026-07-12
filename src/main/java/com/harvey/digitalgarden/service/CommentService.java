@@ -7,6 +7,8 @@ import com.harvey.digitalgarden.entity.Comment;
 import com.harvey.digitalgarden.repository.CommentRepository;
 import com.harvey.digitalgarden.repository.PostRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import java.time.Instant;
 import java.util.List;
 
 @Service
@@ -33,12 +35,12 @@ public class CommentService {
     }
 
     public List<CommentVO> listApproved(Long postId) {
-        return commentRepository.findByPostIdAndStatusOrderByCreatedAtDesc(postId, "APPROVED")
+        return commentRepository.findByPostIdAndStatusOrderByInDtmDesc(postId, "APPROVED")
                 .stream().map(this::toVO).toList();
     }
 
     public List<CommentVO> listByStatus(String status) {
-        return commentRepository.findByStatusOrderByCreatedAtDesc(status)
+        return commentRepository.findByStatusOrderByInDtmDesc(status)
                 .stream().map(this::toVO).toList();
     }
 
@@ -49,11 +51,13 @@ public class CommentService {
         return toVO(commentRepository.save(c));
     }
 
+    @Transactional
     public void delete(Long id) {
-        if (!commentRepository.existsById(id)) {
-            throw BusinessException.notFound("评论不存在");
-        }
-        commentRepository.deleteById(id);
+        Comment c = commentRepository.findById(id)
+                .orElseThrow(() -> BusinessException.notFound("评论不存在"));
+        c.setIsDeleted(true);
+        c.setUpdateDtm(Instant.now().getEpochSecond());
+        commentRepository.save(c);
     }
 
     private CommentVO toVO(Comment c) {
@@ -63,7 +67,7 @@ public class CommentService {
         vo.setNickname(c.getNickname());
         vo.setContent(c.getContent());
         vo.setStatus(c.getStatus());
-        vo.setCreatedAt(c.getCreatedAt());
+        vo.setInDtm(c.getInDtm());
         return vo;
     }
 }

@@ -14,8 +14,9 @@ public interface PostRepository extends JpaRepository<Post, Long> {
 
     Page<Post> findByStatus(String status, Pageable pageable);
 
-    @Query("select distinct p from Post p join p.tags t " +
-            "where p.status = 'PUBLISHED' and t.name = :tagName")
+    @Query("select distinct p from Post p, PostTag pt, Tag t " +
+            "where pt.postId = p.id and pt.tagId = t.id " +
+            "and p.status = 'PUBLISHED' and t.name = :tagName")
     Page<Post> findPublishedByTag(@Param("tagName") String tagName, Pageable pageable);
 
     @Query("select p from Post p where p.status = 'PUBLISHED' and " +

@@ -6,8 +6,12 @@ import com.harvey.digitalgarden.dto.PostDetailVO;
 import com.harvey.digitalgarden.dto.PostRequest;
 import com.harvey.digitalgarden.dto.PostVO;
 import com.harvey.digitalgarden.entity.Post;
+import com.harvey.digitalgarden.entity.PostTag;
 import com.harvey.digitalgarden.entity.Tag;
+import com.harvey.digitalgarden.repository.CommentRepository;
+import com.harvey.digitalgarden.repository.PostLikeRepository;
 import com.harvey.digitalgarden.repository.PostRepository;
+import com.harvey.digitalgarden.repository.PostTagRepository;
 import com.harvey.digitalgarden.repository.TagRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -15,6 +19,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -25,14 +30,24 @@ public class PostService {
 
     private final PostRepository postRepository;
     private final TagRepository tagRepository;
+    private final PostTagRepository postTagRepository;
+    private final CommentRepository commentRepository;
+    private final PostLikeRepository postLikeRepository;
 
-    public PostService(PostRepository postRepository, TagRepository tagRepository) {
+    public PostService(PostRepository postRepository,
+                       TagRepository tagRepository,
+                       PostTagRepository postTagRepository,
+                       CommentRepository commentRepository,
+                       PostLikeRepository postLikeRepository) {
         this.postRepository = postRepository;
         this.tagRepository = tagRepository;
+        this.postTagRepository = postTagRepository;
+        this.commentRepository = commentRepository;
+        this.postLikeRepository = postLikeRepository;
     }
 
     private Pageable pageable(int page, int size) {
-        return PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        return PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "inDtm"));
     }
 
     public PageResult<PostVO> listPublished(int page, int size, String tag) {
@@ -73,8 +88,10 @@ public class PostService {
             throw BusinessException.conflict("slug 已存在");
         }
         Post post = new Post();
-        applyRequest(post, req);
-        return toDetailVO(postRepository.save(post));
+        applyRequestFields(post, req);
+        post = postRepository.save(post);
+        syncTags(post.getId(), req.getTags());
+        return toDetailVO(post);
     }
 
     @Transactional
@@ -84,41 +101,81 @@ public class PostService {
         if (!post.getSlug().equals(req.getSlug()) && postRepository.existsBySlug(req.getSlug())) {
             throw BusinessException.conflict("slug 已存在");
         }
-        applyRequest(post, req);
-        return toDetailVO(postRepository.save(post));
+        applyRequestFields(post, req);
+        post = postRepository.save(post);
+        syncTags(post.getId(), req.getTags());
+        return toDetailVO(post);
     }
 
     @Transactional
     public void delete(Long id) {
-        if (!postRepository.existsById(id)) {
-            throw BusinessException.notFound("文章不存在");
-        }
-        postRepository.deleteById(id);
+        Post post = postRepository.findById(id)
+                .orElseThrow(() -> BusinessException.notFound("文章不存在"));
+        long now = Instant.now().getEpochSecond();
+        post.setIsDeleted(true);
+        post.setUpdateDtm(now);
+        postRepository.save(post);
+        postTagRepository.softDeleteByPostId(id, now);
+        commentRepository.softDeleteByPostId(id, now);
+        postLikeRepository.softDeleteByPostId(id, now);
     }
 
-    private void applyRequest(Post post, PostRequest req) {
+    private void applyRequestFields(Post post, PostRequest req) {
         post.setTitle(req.getTitle());
         post.setSlug(req.getSlug());
         post.setContentMd(req.getContentMd());
-        post.setSummary(req.getSummary());
-        post.setCoverImage(req.getCoverImage());
+        post.setSummary(req.getSummary() == null ? "" : req.getSummary());
+        post.setCoverImage(req.getCoverImage() == null ? "" : req.getCoverImage());
         post.setStatus(req.getStatus());
-        post.setTags(resolveTags(req.getTags()));
     }
 
-    private Set<Tag> resolveTags(Set<String> names) {
-        Set<Tag> tags = new HashSet<>();
-        if (names == null) return tags;
-        for (String name : names) {
-            if (name == null || name.isBlank()) continue;
-            Tag tag = tagRepository.findByName(name.trim()).orElseGet(() -> {
+    private void syncTags(Long postId, Set<String> names) {
+        Set<String> desired = new HashSet<>();
+        if (names != null) {
+            for (String name : names) {
+                if (name != null && !name.isBlank()) {
+                    desired.add(name.trim());
+                }
+            }
+        }
+
+        Set<Long> desiredTagIds = new HashSet<>();
+        long now = Instant.now().getEpochSecond();
+
+        for (String name : desired) {
+            Tag tag = tagRepository.findByName(name).orElseGet(() -> {
                 Tag t = new Tag();
-                t.setName(name.trim());
+                t.setName(name);
                 return tagRepository.save(t);
             });
-            tags.add(tag);
+            desiredTagIds.add(tag.getId());
+
+            if (postTagRepository.findByPostIdAndTagId(postId, tag.getId()).isPresent()) {
+                continue;
+            }
+            if (postTagRepository.restoreByPostIdAndTagId(postId, tag.getId(), now) == 0) {
+                PostTag link = new PostTag();
+                link.setPostId(postId);
+                link.setTagId(tag.getId());
+                postTagRepository.save(link);
+            }
         }
-        return tags;
+
+        for (PostTag link : postTagRepository.findByPostId(postId)) {
+            if (!desiredTagIds.contains(link.getTagId())) {
+                link.setIsDeleted(true);
+                link.setUpdateDtm(now);
+                postTagRepository.save(link);
+            }
+        }
+    }
+
+    private List<String> loadTagNames(Long postId) {
+        return postTagRepository.findByPostId(postId).stream()
+                .map(pt -> tagRepository.findById(pt.getTagId()).map(Tag::getName).orElse(""))
+                .filter(name -> !name.isEmpty())
+                .sorted()
+                .collect(Collectors.toList());
     }
 
     public PostVO toVO(Post p) {
@@ -131,8 +188,8 @@ public class PostService {
         vo.setStatus(p.getStatus());
         vo.setViewCount(p.getViewCount());
         vo.setLikeCount(p.getLikeCount());
-        vo.setTags(p.getTags().stream().map(Tag::getName).collect(Collectors.toList()));
-        vo.setCreatedAt(p.getCreatedAt());
+        vo.setTags(loadTagNames(p.getId()));
+        vo.setInDtm(p.getInDtm());
         return vo;
     }
 
@@ -147,9 +204,9 @@ public class PostService {
         vo.setStatus(p.getStatus());
         vo.setViewCount(p.getViewCount());
         vo.setLikeCount(p.getLikeCount());
-        vo.setTags(p.getTags().stream().map(Tag::getName).collect(Collectors.toList()));
-        vo.setCreatedAt(p.getCreatedAt());
-        vo.setUpdatedAt(p.getUpdatedAt());
+        vo.setTags(loadTagNames(p.getId()));
+        vo.setInDtm(p.getInDtm());
+        vo.setUpdateDtm(p.getUpdateDtm());
         return vo;
     }
 }

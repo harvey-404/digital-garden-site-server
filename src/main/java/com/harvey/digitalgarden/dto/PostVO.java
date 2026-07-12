@@ -1,7 +1,6 @@
 package com.harvey.digitalgarden.dto;
 
 import lombok.Data;
-import java.time.LocalDateTime;
 import java.util.List;
 
 @Data
@@ -15,5 +14,5 @@ public class PostVO {
     private Integer viewCount;
     private Integer likeCount;
     private List<String> tags;
-    private LocalDateTime createdAt;
+    private Long inDtm;
 }

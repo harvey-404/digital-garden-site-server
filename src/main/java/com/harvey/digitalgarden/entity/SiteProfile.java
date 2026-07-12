@@ -2,23 +2,28 @@ package com.harvey.digitalgarden.entity;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
+import org.hibernate.annotations.SQLRestriction;
 
 @Data
+@EqualsAndHashCode(callSuper = true)
 @Entity
 @Table(name = "site_profile")
-public class SiteProfile {
+@SQLRestriction("is_deleted = 0")
+public class SiteProfile extends BaseEntity {
     @Id
-    private Long id = 1L; // 单条记录，固定 id=1
+    private Long id = 1L;
 
-    private String displayName;
+    @Column(name = "display_name", nullable = false, length = 255)
+    private String displayName = "";
 
-    @Column(name = "avatar_url")
-    private String avatarUrl;
+    @Column(name = "avatar_url", nullable = false, length = 255)
+    private String avatarUrl = "";
 
     @Lob
-    @Column(columnDefinition = "TEXT")
-    private String bio;
+    @Column(nullable = false, columnDefinition = "TEXT")
+    private String bio = "";
 
-    @Column(name = "social_links", length = 1000)
-    private String socialLinks; // JSON 字符串：[{"name":"GitHub","url":"..."}]
+    @Column(name = "social_links", nullable = false, length = 1000)
+    private String socialLinks = "[]";
 }

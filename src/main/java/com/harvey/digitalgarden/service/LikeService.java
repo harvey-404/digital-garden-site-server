@@ -47,7 +47,7 @@ public class LikeService {
     }
 
     private String sha256(String input) {
-        if (input == null) return null;
+        if (input == null) return "";
         try {
             MessageDigest md = MessageDigest.getInstance("SHA-256");
             byte[] hash = md.digest(input.getBytes(StandardCharsets.UTF_8));
@@ -55,7 +55,7 @@ public class LikeService {
             for (byte b : hash) sb.append(String.format("%02x", b));
             return sb.toString();
         } catch (Exception e) {
-            return null;
+            return "";
         }
     }
 }

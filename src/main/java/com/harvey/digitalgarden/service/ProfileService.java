@@ -28,10 +28,10 @@ public class ProfileService {
             np.setId(1L);
             return np;
         });
-        p.setDisplayName(req.getDisplayName());
-        p.setAvatarUrl(req.getAvatarUrl());
-        p.setBio(req.getBio());
-        p.setSocialLinks(req.getSocialLinks());
+        p.setDisplayName(req.getDisplayName() == null ? "" : req.getDisplayName());
+        p.setAvatarUrl(req.getAvatarUrl() == null ? "" : req.getAvatarUrl());
+        p.setBio(req.getBio() == null ? "" : req.getBio());
+        p.setSocialLinks(req.getSocialLinks() == null || req.getSocialLinks().isBlank() ? "[]" : req.getSocialLinks());
         return toVO(repository.save(p));
     }
 
