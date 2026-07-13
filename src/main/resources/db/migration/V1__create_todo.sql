@@ -1,4 +1,4 @@
-CREATE TABLE todo (
+CREATE TABLE IF NOT EXISTS todo (
     id           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     title        VARCHAR(200)    NOT NULL DEFAULT '',
     slug         VARCHAR(200)    NOT NULL DEFAULT '',
