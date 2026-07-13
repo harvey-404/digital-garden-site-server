@@ -33,7 +33,7 @@ public class Todo extends BaseEntity {
     @Column(nullable = false, length = 16)
     private String priority = "MEDIUM";
 
-    @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "TINYINT UNSIGNED NOT NULL DEFAULT 0")
     private Integer progress = 0;
 
     @Column(nullable = false, length = 16)
