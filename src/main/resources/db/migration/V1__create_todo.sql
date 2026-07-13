@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS todo (
     description  TEXT            NOT NULL,
     plan_md      LONGTEXT        NOT NULL,
     priority     VARCHAR(16)     NOT NULL DEFAULT 'MEDIUM' COMMENT 'HIGH/MEDIUM/LOW',
-    progress     TINYINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '0-100',
+    progress     INT             NOT NULL DEFAULT 0 COMMENT '0-100',
     status       VARCHAR(16)     NOT NULL DEFAULT 'DRAFT' COMMENT 'DRAFT/PUBLISHED',
     sort_order   INT             NOT NULL DEFAULT 0,
     is_deleted   TINYINT(1)      NOT NULL DEFAULT 0,
