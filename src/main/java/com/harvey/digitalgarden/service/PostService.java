@@ -82,6 +82,13 @@ public class PostService {
         return toDetailVO(post);
     }
 
+    /** Admin: load by id regardless of DRAFT/PUBLISHED (no viewCount bump). */
+    public PostDetailVO getById(Long id) {
+        Post post = postRepository.findById(id)
+                .orElseThrow(() -> BusinessException.notFound("文章不存在"));
+        return toDetailVO(post);
+    }
+
     @Transactional
     public PostDetailVO create(PostRequest req) {
         if (postRepository.existsBySlug(req.getSlug())) {

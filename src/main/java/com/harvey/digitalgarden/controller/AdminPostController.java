@@ -26,6 +26,11 @@ public class AdminPostController {
         return Result.success(postService.listAll(page, size));
     }
 
+    @GetMapping("/{id}")
+    public Result<PostDetailVO> detail(@PathVariable Long id) {
+        return Result.success(postService.getById(id));
+    }
+
     @PostMapping
     public Result<PostDetailVO> create(@Valid @RequestBody PostRequest req) {
         return Result.success(postService.create(req));
