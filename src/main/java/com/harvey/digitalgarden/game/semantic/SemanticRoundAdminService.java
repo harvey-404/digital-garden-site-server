@@ -18,6 +18,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
@@ -80,7 +82,21 @@ public class SemanticRoundAdminService {
         if (created.isEmpty()) {
             throw BusinessException.badRequest("词列表不能为空");
         }
+        scheduleAutoStartAfterCommit();
         return created;
+    }
+
+    /** When queue was empty / waiting, refill should open a round without manual 开局. */
+    private void scheduleAutoStartAfterCommit() {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                events.publishEvent(new SemanticQueueRefilledEvent());
+            }
+        });
     }
 
     @Transactional
