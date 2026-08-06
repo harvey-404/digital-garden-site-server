@@ -34,3 +34,13 @@ app:
     default-password: ${ADMIN_PASSWORD:admin123456}
   cors:
     allowed-origins: ${CORS_ORIGINS:http://localhost:5173}
+  dashscope:
+    api-key: ${DASHSCOPE_API_KEY:}
+    embedding-model: ${DASHSCOPE_EMBEDDING_MODEL:text-embedding-v3}
+    base-url: ${DASHSCOPE_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
+  game:
+    semantic:
+      guess-interval-ms: 1500
+      fp-guesses-per-minute: 30
+      embedding-max-concurrent: 2
+      nickname-cooldown-seconds: 60
