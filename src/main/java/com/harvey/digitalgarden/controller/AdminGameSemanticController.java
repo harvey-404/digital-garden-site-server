@@ -57,6 +57,15 @@ public class AdminGameSemanticController {
         return Result.success();
     }
 
+    @PatchMapping("/words/{id}/hints")
+    public Result<SemanticWordVO> updateHints(
+            @PathVariable Long id, @RequestBody SemanticWordRequest req) {
+        if (req == null) {
+            throw BusinessException.badRequest("请求体不能为空");
+        }
+        return Result.success(adminService.updateHints(id, req.getHint1(), req.getHint2(), req.getHint3()));
+    }
+
     @PostMapping("/rounds/start")
     public Result<SemanticRoundAdminVO> startRound() {
         return Result.success(adminService.startRound());
