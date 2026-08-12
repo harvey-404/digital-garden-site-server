@@ -2,6 +2,7 @@ package com.harvey.digitalgarden.game.semantic.ws;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.harvey.digitalgarden.game.semantic.DeviceIdentityService;
 import com.harvey.digitalgarden.game.semantic.EmbeddingException;
 import com.harvey.digitalgarden.game.semantic.GameEngineService;
 import com.harvey.digitalgarden.game.semantic.GameEngineService.GuessResult;
@@ -10,7 +11,6 @@ import com.harvey.digitalgarden.game.semantic.GameEngineService.WordRecord;
 import com.harvey.digitalgarden.game.semantic.RoundSnapshotChangedEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
@@ -42,23 +42,21 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
     private static final int MAX_FP_LEN = 64;
 
     private final GameEngineService gameEngine;
+    private final DeviceIdentityService identityService;
     private final GuessRateLimiter rateLimiter;
     private final ObjectMapper objectMapper;
-    private final long nicknameCooldownMs;
 
     private final ConcurrentHashMap<String, WebSocketSession> sessions = new ConcurrentHashMap<>();
-    /** fp → last accepted display name + bind time (for rename cooldown). */
-    private final ConcurrentHashMap<String, NickBinding> nickByFp = new ConcurrentHashMap<>();
 
     public GameWebSocketHandler(
             GameEngineService gameEngine,
+            DeviceIdentityService identityService,
             GuessRateLimiter rateLimiter,
-            ObjectMapper objectMapper,
-            @Value("${app.game.semantic.nickname-cooldown-seconds}") long nicknameCooldownSeconds) {
+            ObjectMapper objectMapper) {
         this.gameEngine = gameEngine;
+        this.identityService = identityService;
         this.rateLimiter = rateLimiter;
         this.objectMapper = objectMapper;
-        this.nicknameCooldownMs = Math.max(0L, nicknameCooldownSeconds) * 1000L;
     }
 
     @Override
@@ -77,29 +75,18 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
             return;
         }
 
-        String username = requestedUsername.trim();
-        boolean nickCooldown = false;
-        long now = System.currentTimeMillis();
-        NickBinding existing = nickByFp.get(fp);
-        if (existing != null
-                && !existing.username.equals(username)
-                && now - existing.boundAtMs < nicknameCooldownMs) {
-            username = existing.username;
-            nickCooldown = true;
-        } else {
-            nickByFp.put(fp, new NickBinding(username, now));
-        }
+        DeviceIdentityService.ResolveResult resolved =
+                identityService.resolveOnConnect(fp.trim(), requestedUsername.trim());
+        String username = resolved.username();
 
         session.getAttributes().put(ATTR_USERNAME, username);
-        session.getAttributes().put(ATTR_FP, fp);
+        session.getAttributes().put(ATTR_FP, fp.trim());
         sessions.put(session.getId(), session);
 
+        sendJson(session, identityPayload(username, resolved.reusedPrior()));
         sendJson(session, roundStatePayload());
         sendJson(session, top10Payload());
         sendJson(session, hintsPayload());
-        if (nickCooldown) {
-            sendJson(session, errorPayload("NICK_COOLDOWN", "昵称冷却中，已沿用原昵称"));
-        }
     }
 
     @Override
@@ -257,6 +244,14 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         return msg;
     }
 
+    private Map<String, Object> identityPayload(String username, boolean reusedPrior) {
+        Map<String, Object> msg = new LinkedHashMap<>();
+        msg.put("type", "identity");
+        msg.put("username", username == null ? "" : username);
+        msg.put("reusedPrior", reusedPrior);
+        return msg;
+    }
+
     private Map<String, Object> guessResultPayload(GuessResult result) {
         WordRecord r = result.record();
         Map<String, Object> msg = new LinkedHashMap<>();
@@ -329,6 +324,4 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
     private static String urlDecode(String s) {
         return URLDecoder.decode(s, StandardCharsets.UTF_8);
     }
-
-    private record NickBinding(String username, long boundAtMs) {}
 }
