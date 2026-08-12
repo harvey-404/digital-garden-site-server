@@ -35,13 +35,16 @@ public class GameEngineService {
             boolean alreadyGuessed,
             boolean needBroadcastTop10,
             boolean gameOver,
-            String next // "" | "new_round" | "waiting_words"
+            String next, // "" | "new_round" | "waiting_words"
+            boolean hintsUpdated
     ) {}
 
     public record RoundSnapshot(long roundId, String status, boolean guessable) {}
 
     private static final int MAX_WORD_LEN = 20;
     private static final int TOP_N = 10;
+    private static final int HINT_EVERY_N = 10;
+    private static final int MAX_HINTS = 3;
 
     private final GameSemanticWordRepository wordRepo;
     private final GameSemanticRoundRepository roundRepo;
@@ -53,6 +56,9 @@ public class GameEngineService {
     private volatile String status = "idle";
     private volatile String targetWord = "";
     private volatile float[] targetEmbedding;
+    private volatile String hint1 = "";
+    private volatile String hint2 = "";
+    private volatile String hint3 = "";
     private final ConcurrentHashMap<String, WordRecord> discovered = new ConcurrentHashMap<>();
     private final CopyOnWriteArrayList<WordRecord> top10 = new CopyOnWriteArrayList<>();
 
@@ -75,6 +81,31 @@ public class GameEngineService {
         return List.copyOf(top10);
     }
 
+    /** Unlocked progressive hints for the current round (empty slots omitted). */
+    public List<String> getUnlockedHints() {
+        if (!"active".equals(status)) {
+            return List.of();
+        }
+        int slots = hintUnlockLevel(discovered.size());
+        return unlockedHintsForSlots(slots);
+    }
+
+    public int getHintUnlockLevel() {
+        if (!"active".equals(status)) {
+            return 0;
+        }
+        return hintUnlockLevel(discovered.size());
+    }
+
+    /** Reload hint texts for the active word without re-embedding. */
+    public synchronized boolean refreshHintsIfCurrentWord(Long id) {
+        if (id == null || id <= 0 || this.wordId != id) {
+            return false;
+        }
+        loadHintsForWord(this.wordId);
+        return true;
+    }
+
     public synchronized GuessResult processGuess(String username, String fp, String rawWord)
             throws EmbeddingException {
         if (!"active".equals(status)) {
@@ -84,8 +115,10 @@ public class GameEngineService {
 
         WordRecord existing = discovered.get(word);
         if (existing != null) {
-            return new GuessResult(existing, false, true, false, false, "");
+            return new GuessResult(existing, false, true, false, false, "", false);
         }
+
+        int unlockBefore = hintUnlockLevel(discovered.size());
 
         double score;
         boolean exact = word.equals(targetWord);
@@ -102,12 +135,14 @@ public class GameEngineService {
         boolean needBroadcast = insertTop10(record);
         persistGuess(record);
 
+        boolean hintsUpdated = hintUnlockLevel(discovered.size()) > unlockBefore;
+
         if (!exact) {
-            return new GuessResult(record, true, false, needBroadcast, false, "");
+            return new GuessResult(record, true, false, needBroadcast, false, "", hintsUpdated);
         }
 
         String next = finishRoundAndAdvance(username, fp);
-        return new GuessResult(record, true, false, needBroadcast, true, next);
+        return new GuessResult(record, true, false, needBroadcast, true, next, true);
     }
 
     @PostConstruct
@@ -127,6 +162,9 @@ public class GameEngineService {
             this.status = "waiting_words";
             this.targetWord = "";
             this.targetEmbedding = null;
+            this.hint1 = "";
+            this.hint2 = "";
+            this.hint3 = "";
             discovered.clear();
             top10.clear();
         }
@@ -165,6 +203,7 @@ public class GameEngineService {
         this.status = round.getStatus() == null ? "active" : round.getStatus();
         this.targetWord = round.getTargetWord() == null ? "" : round.getTargetWord();
         this.targetEmbedding = embedding;
+        loadHintsForWord(this.wordId);
         discovered.clear();
         top10.clear();
 
@@ -184,11 +223,28 @@ public class GameEngineService {
         top10.addAll(rebuilt.stream().limit(TOP_N).toList());
     }
 
+    private void loadHintsForWord(long id) {
+        this.hint1 = "";
+        this.hint2 = "";
+        this.hint3 = "";
+        if (id <= 0) {
+            return;
+        }
+        wordRepo.findById(id).ifPresent(w -> {
+            this.hint1 = w.getHint1() == null ? "" : w.getHint1().trim();
+            this.hint2 = w.getHint2() == null ? "" : w.getHint2().trim();
+            this.hint3 = w.getHint3() == null ? "" : w.getHint3().trim();
+        });
+    }
+
     public synchronized void clearHotStateWaiting(String status) {
         this.status = status == null ? "idle" : status;
         this.wordId = 0L;
         this.targetWord = "";
         this.targetEmbedding = null;
+        this.hint1 = "";
+        this.hint2 = "";
+        this.hint3 = "";
         discovered.clear();
         top10.clear();
         if (!"waiting_words".equals(this.status) && !"active".equals(this.status)) {
@@ -320,5 +376,20 @@ public class GameEngineService {
 
         long waitingId = waiting.getId() == null ? 0L : waiting.getId();
         enterWaitingWords(waitingId);
+    }
+
+    private static int hintUnlockLevel(int uniqueGuessCount) {
+        return Math.min(MAX_HINTS, Math.max(0, uniqueGuessCount) / HINT_EVERY_N);
+    }
+
+    private List<String> unlockedHintsForSlots(int slots) {
+        String[] bank = {hint1, hint2, hint3};
+        List<String> out = new ArrayList<>();
+        for (int i = 0; i < slots && i < bank.length; i++) {
+            if (bank[i] != null && !bank[i].isBlank()) {
+                out.add(bank[i]);
+            }
+        }
+        return List.copyOf(out);
     }
 }

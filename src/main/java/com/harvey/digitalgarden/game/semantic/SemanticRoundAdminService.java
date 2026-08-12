@@ -118,6 +118,31 @@ public class SemanticRoundAdminService {
         wordRepo.save(word);
     }
 
+    @Transactional
+    public SemanticWordVO updateHints(Long id, String hint1, String hint2, String hint3) {
+        GameSemanticWord word = wordRepo.findById(id)
+                .orElseThrow(() -> BusinessException.notFound("词不存在"));
+        word.setHint1(normalizeHint(hint1));
+        word.setHint2(normalizeHint(hint2));
+        word.setHint3(normalizeHint(hint3));
+        SemanticWordVO vo = toWordVO(wordRepo.save(word));
+        if (gameEngine.refreshHintsIfCurrentWord(word.getId())) {
+            events.publishEvent(new RoundSnapshotChangedEvent());
+        }
+        return vo;
+    }
+
+    private static String normalizeHint(String raw) {
+        if (raw == null) {
+            return "";
+        }
+        String t = raw.trim();
+        if (t.length() > 256) {
+            throw BusinessException.badRequest("提示最长 256 字");
+        }
+        return t;
+    }
+
     public SemanticRoundAdminVO getAdminStatus() {
         GameEngineService.RoundSnapshot snap = gameEngine.getRoundSnapshot();
         SemanticRoundAdminVO vo = new SemanticRoundAdminVO();
@@ -287,6 +312,9 @@ public class SemanticRoundAdminService {
         vo.setWord(word.getWord());
         vo.setQueueOrder(word.getQueueOrder());
         vo.setStatus(word.getStatus());
+        vo.setHint1(word.getHint1() == null ? "" : word.getHint1());
+        vo.setHint2(word.getHint2() == null ? "" : word.getHint2());
+        vo.setHint3(word.getHint3() == null ? "" : word.getHint3());
         return vo;
     }
 }

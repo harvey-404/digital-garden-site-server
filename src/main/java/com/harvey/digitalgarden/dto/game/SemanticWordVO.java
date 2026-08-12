@@ -8,4 +8,7 @@ public class SemanticWordVO {
     private String word;
     private Integer queueOrder;
     private String status;
+    private String hint1;
+    private String hint2;
+    private String hint3;
 }

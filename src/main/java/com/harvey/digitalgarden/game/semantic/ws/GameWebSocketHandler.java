@@ -96,6 +96,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
 
         sendJson(session, roundStatePayload());
         sendJson(session, top10Payload());
+        sendJson(session, hintsPayload());
         if (nickCooldown) {
             sendJson(session, errorPayload("NICK_COOLDOWN", "昵称冷却中，已沿用原昵称"));
         }
@@ -182,15 +183,19 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         sendJson(session, guessResultPayload(result));
 
         if (result.gameOver()) {
-            // Order: personal guess_result → broadcast game_over → round_state + top10_update
+            // Order: personal guess_result → broadcast game_over → round_state + top10 + hints
             broadcast(gameOverPayload(result));
             broadcast(roundStatePayload());
             broadcast(top10Payload());
+            broadcast(hintsPayload());
             return;
         }
 
         if (result.needBroadcastTop10()) {
             broadcast(top10Payload());
+        }
+        if (result.hintsUpdated()) {
+            broadcast(hintsPayload());
         }
     }
 
@@ -203,6 +208,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
     public void broadcastRoundSnapshot() {
         broadcast(roundStatePayload());
         broadcast(top10Payload());
+        broadcast(hintsPayload());
     }
 
     private void broadcast(Map<String, Object> payload) {
@@ -240,6 +246,14 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         Map<String, Object> msg = new LinkedHashMap<>();
         msg.put("type", "top10_update");
         msg.put("data", data);
+        return msg;
+    }
+
+    private Map<String, Object> hintsPayload() {
+        Map<String, Object> msg = new LinkedHashMap<>();
+        msg.put("type", "hints_update");
+        msg.put("unlockedCount", gameEngine.getHintUnlockLevel());
+        msg.put("hints", gameEngine.getUnlockedHints());
         return msg;
     }
 

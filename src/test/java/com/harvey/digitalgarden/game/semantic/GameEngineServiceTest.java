@@ -60,6 +60,7 @@ class GameEngineServiceTest {
         lenient().when(wordRepo.save(any(GameSemanticWord.class))).thenAnswer(inv -> inv.getArgument(0));
         lenient().when(guessRepo.findByRoundIdOrderByScoreDescInDtmAsc(anyLong()))
                 .thenReturn(List.of());
+        lenient().when(wordRepo.findById(anyLong())).thenReturn(Optional.empty());
     }
 
     private static float[] vectorFor(String text) {
@@ -289,5 +290,56 @@ class GameEngineServiceTest {
         IllegalStateException ex = assertThrows(IllegalStateException.class,
                 () -> engine.processGuess("eve", "fp-e", "苹果"));
         assertTrue(ex.getMessage().contains("ROUND_INACTIVE"));
+    }
+
+    @Test
+    void unlocksProgressiveHintsEvery10UniqueGuesses() throws EmbeddingException {
+        GameSemanticWord activeWord = new GameSemanticWord();
+        activeWord.setId(1L);
+        activeWord.setWord("苹果");
+        activeWord.setStatus("active");
+        activeWord.setHint1("生活中常见的水果");
+        activeWord.setHint2("红色或绿色，可生吃");
+        activeWord.setHint3("拼音是 ping guo");
+        when(wordRepo.findById(1L)).thenReturn(Optional.of(activeWord));
+
+        loadAppleRound();
+        assertEquals(0, engine.getHintUnlockLevel());
+        assertTrue(engine.getUnlockedHints().isEmpty());
+
+        for (int i = 0; i < 9; i++) {
+            GameEngineService.GuessResult r = engine.processGuess("u" + i, "fp" + i, "w" + i);
+            assertFalse(r.hintsUpdated());
+        }
+        assertEquals(0, engine.getHintUnlockLevel());
+
+        GameEngineService.GuessResult tenth = engine.processGuess("u9", "fp9", "w9");
+        assertTrue(tenth.hintsUpdated());
+        assertEquals(1, engine.getHintUnlockLevel());
+        assertEquals(List.of("生活中常见的水果"), engine.getUnlockedHints());
+
+        for (int i = 10; i < 19; i++) {
+            engine.processGuess("u" + i, "fp" + i, "w" + i);
+        }
+        GameEngineService.GuessResult twentieth = engine.processGuess("u19", "fp19", "w19");
+        assertTrue(twentieth.hintsUpdated());
+        assertEquals(2, engine.getHintUnlockLevel());
+        assertEquals(List.of("生活中常见的水果", "红色或绿色，可生吃"), engine.getUnlockedHints());
+
+        for (int i = 20; i < 29; i++) {
+            engine.processGuess("u" + i, "fp" + i, "w" + i);
+        }
+        GameEngineService.GuessResult thirtieth = engine.processGuess("u29", "fp29", "w29");
+        assertTrue(thirtieth.hintsUpdated());
+        assertEquals(3, engine.getHintUnlockLevel());
+        assertEquals(
+                List.of("生活中常见的水果", "红色或绿色，可生吃", "拼音是 ping guo"),
+                engine.getUnlockedHints());
+
+        // Duplicate must not change unlock
+        GameEngineService.GuessResult dup = engine.processGuess("other", "fp-x", "w0");
+        assertTrue(dup.alreadyGuessed());
+        assertFalse(dup.hintsUpdated());
+        assertEquals(3, engine.getHintUnlockLevel());
     }
 }

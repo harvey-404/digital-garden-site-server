@@ -23,4 +23,16 @@ public class GameSemanticWord extends BaseEntity {
 
     @Column(nullable = false, length = 20)
     private String status = "pending"; // pending|active|used|skipped
+
+    /** Weakest progressive hint; public after 10 unique guesses. */
+    @Column(nullable = false, length = 256)
+    private String hint1 = "";
+
+    /** Medium progressive hint; public after 20 unique guesses. */
+    @Column(nullable = false, length = 256)
+    private String hint2 = "";
+
+    /** Strongest progressive hint; public after 30 unique guesses. */
+    @Column(nullable = false, length = 256)
+    private String hint3 = "";
 }
