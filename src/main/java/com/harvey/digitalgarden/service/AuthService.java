@@ -28,7 +28,7 @@ public class AuthService {
         if (!encoder.matches(req.getPassword(), admin.getPasswordHash())) {
             throw new BusinessException(ResultCode.UNAUTHORIZED, "用户名或密码错误");
         }
-        String token = jwtUtil.generateToken(admin.getUsername());
+        String token = jwtUtil.generateAdminToken(admin.getUsername());
         return new LoginResponse(token, admin.getUsername());
     }
 }

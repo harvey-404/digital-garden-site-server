@@ -22,4 +22,8 @@ public class BusinessException extends RuntimeException {
     public static BusinessException conflict(String message) {
         return new BusinessException(ResultCode.CONFLICT, message);
     }
+
+    public static BusinessException forbidden(String message) {
+        return new BusinessException(ResultCode.FORBIDDEN, message);
+    }
 }

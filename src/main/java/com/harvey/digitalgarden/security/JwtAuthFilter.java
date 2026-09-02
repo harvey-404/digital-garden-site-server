@@ -1,5 +1,6 @@
 package com.harvey.digitalgarden.security;
 
+import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -28,10 +29,26 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         if (header != null && header.startsWith("Bearer ")) {
             String token = header.substring(7);
             try {
-                String username = jwtUtil.validateAndGetUsername(token);
-                var auth = new UsernamePasswordAuthenticationToken(
-                        username, null, List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
-                SecurityContextHolder.getContext().setAuthentication(auth);
+                Claims claims = jwtUtil.parseClaims(token);
+                String role = claims.get("role", String.class);
+                UsernamePasswordAuthenticationToken auth;
+                if ("LEDGER".equals(role)) {
+                    long uid = claims.get("uid", Number.class).longValue();
+                    auth = new UsernamePasswordAuthenticationToken(
+                            new LedgerPrincipal(uid, claims.getSubject()),
+                            null,
+                            List.of(new SimpleGrantedAuthority("ROLE_LEDGER")));
+                } else if ("ADMIN".equals(role) || role == null) {
+                    auth = new UsernamePasswordAuthenticationToken(
+                            claims.getSubject(),
+                            null,
+                            List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
+                } else {
+                    auth = null;
+                }
+                if (auth != null) {
+                    SecurityContextHolder.getContext().setAuthentication(auth);
+                }
             } catch (Exception ignored) {
                 SecurityContextHolder.clearContext();
             }
