@@ -21,6 +21,7 @@ public class JwtUtil {
         this.expirationMs = expirationMs;
     }
 
+    /** Legacy token without role claim; validated as ROLE_ADMIN in filter. */
     public String generateToken(String username) {
         Date now = new Date();
         Date exp = new Date(now.getTime() + expirationMs);
@@ -32,12 +33,40 @@ public class JwtUtil {
                 .compact();
     }
 
-    public String validateAndGetUsername(String token) {
-        Claims claims = Jwts.parser()
+    public String generateAdminToken(String username) {
+        Date now = new Date();
+        Date exp = new Date(now.getTime() + expirationMs);
+        return Jwts.builder()
+                .subject(username)
+                .claim("role", "ADMIN")
+                .issuedAt(now)
+                .expiration(exp)
+                .signWith(key)
+                .compact();
+    }
+
+    public String generateLedgerToken(long uid, String userSn) {
+        Date now = new Date();
+        Date exp = new Date(now.getTime() + expirationMs);
+        return Jwts.builder()
+                .subject(userSn)
+                .claim("role", "LEDGER")
+                .claim("uid", uid)
+                .issuedAt(now)
+                .expiration(exp)
+                .signWith(key)
+                .compact();
+    }
+
+    public Claims parseClaims(String token) {
+        return Jwts.parser()
                 .verifyWith(key)
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();
-        return claims.getSubject();
+    }
+
+    public String validateAndGetUsername(String token) {
+        return parseClaims(token).getSubject();
     }
 }
