@@ -24,6 +24,12 @@ public class ProjectService {
                 .stream().map(this::toVO).toList();
     }
 
+    public ProjectVO get(Long id) {
+        Project p = repository.findById(id)
+                .orElseThrow(() -> BusinessException.notFound("项目不存在"));
+        return toVO(p);
+    }
+
     public ProjectVO create(ProjectRequest req) {
         Project p = new Project();
         apply(p, req);
