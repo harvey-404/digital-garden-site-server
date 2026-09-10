@@ -20,4 +20,9 @@ public class ProjectController {
     public Result<List<ProjectVO>> list() {
         return Result.success(projectService.listAll());
     }
+
+    @GetMapping("/{id}")
+    public Result<ProjectVO> get(@PathVariable Long id) {
+        return Result.success(projectService.get(id));
+    }
 }
