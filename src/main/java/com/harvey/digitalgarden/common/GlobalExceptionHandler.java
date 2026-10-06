@@ -9,6 +9,10 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    public ResponseEntity<Result<Void>> handleUploadSize() {
+        return ResponseEntity.ok(Result.error(ResultCode.BAD_REQUEST, "每张图片最多10MB，请压缩后上传"));
+    }
 
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<Result<Void>> handleBusiness(BusinessException ex) {

@@ -105,6 +105,9 @@ public class LedgerExpenseService {
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
             throw BusinessException.badRequest("expense.amount 必须大于 0");
         }
+        if (amount.compareTo(new BigDecimal("999999.99")) > 0 || amount.scale() > 2) {
+            throw BusinessException.badRequest("金额不超过 999999.99，最多两位小数");
+        }
 
         Long recordedAt = request.getRecordedAt();
         if (recordedAt == null || recordedAt <= 0L) {
