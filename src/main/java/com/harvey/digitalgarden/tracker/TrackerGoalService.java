@@ -71,8 +71,13 @@ public class TrackerGoalService {
       String message = validator.string(result, "message", 300);
       return new NaturalResult("CLARIFY", message, null);
     }
-    var activity =
-        activities.createNatural(uid, validator.validate(input.requestId(), text, result));
+    ActivityInput validated;
+    try {
+      validated = validator.validate(input.requestId(), text, result);
+    } catch (TrackerGoalAmbiguity e) {
+      return new NaturalResult("CLARIFY", e.getMessage(), null);
+    }
+    var activity = activities.createNatural(uid, validated);
     return new NaturalResult("CREATED", "已保存，可在活动菜单中撤销", activity);
   }
 }

@@ -10,6 +10,8 @@ import org.springframework.stereotype.Component;
 @Component
 public class TrackerGoalValidator {
   public ActivityInput validate(UUID id, String text, JsonNode n) {
+    var grounding = new TrackerGoalGrounding();
+    text = grounding.effectiveText(text);
     try {
       if (n == null
           || !n.isObject()
@@ -66,8 +68,11 @@ public class TrackerGoalValidator {
             text,
             n.get("statisticsEvidence"),
             "(?i).*(仅统计|只记录|只统计|不设目标|无需目标|没有目标|without a goal|no goal|statistics only).*");
+      grounding.verify(text, unit, rule, this);
       return new ActivityInput(
           id, name, unit, template, n.path("trackDuration").booleanValue(), rule);
+    } catch (TrackerGoalAmbiguity e) {
+      throw e;
     } catch (Exception e) {
       throw new TrackerException(502, "AI返回的目标不完整或格式无效，请补充说明或手动创建");
     }

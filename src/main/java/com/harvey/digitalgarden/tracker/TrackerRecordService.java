@@ -92,6 +92,11 @@ public class TrackerRecordService {
     Entry e = store.entry(uid, id);
     validate(uid, e.activityId(), input);
     long sec = input.durationSeconds() == null ? 0 : input.durationSeconds();
+    // A note/count correction must not move elapsed time across pauses or natural days.
+    var segments =
+        e.startedAt().equals(input.startedAt()) && e.durationSeconds() == sec
+            ? e.segments()
+            : List.of(new Segment(input.startedAt(), input.startedAt().plusSeconds(sec)));
     store
         .jdbc()
         .update(
@@ -101,8 +106,7 @@ public class TrackerRecordService {
             input.startedAt().toString(),
             sec,
             input.note() == null ? "" : input.note(),
-            store.encode(
-                List.of(new Segment(input.startedAt(), input.startedAt().plusSeconds(sec)))),
+            store.encode(segments),
             uid,
             id);
     return view(store.entry(uid, id));

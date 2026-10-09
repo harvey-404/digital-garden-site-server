@@ -400,4 +400,162 @@ class TrackerHttpTest {
       assertEquals(1, ok("GET", "/activities/" + a + "/records", token, null).size());
     }
   }
+
+  @Test
+  void incorrectModelConstraintsClarifyWithoutWriting() throws Exception {
+    String token = user();
+    var helper = new TrackerGoalValidatorTest();
+    var cases =
+        List.of(
+            Map.entry(
+                "every week run at least 3 sessions, each at least 30 minutes",
+                helper.english(30, "30 minutes", false)),
+            Map.entry(
+                "every week run at least 3 sessions, each at least 30 minutes",
+                helper.english(3, "3 sessions", false)),
+            Map.entry(
+                "every week run at least 3 sessions and at most 2 sessions",
+                helper.english(3, "3 sessions", false)),
+            Map.entry(
+                "every week run at least 3 sessions and every day at least 2 sessions",
+                helper.english(3, "3 sessions", false)));
+    for (var c : cases) {
+      when(model.parse(anyString())).thenReturn(c.getValue());
+      var result =
+          ok(
+              "POST",
+              "/goals/natural",
+              token,
+              Map.of("requestId", UUID.randomUUID(), "text", c.getKey()));
+      assertEquals("CLARIFY", result.path("status").asText());
+      assertTrue(result.path("activity").isNull());
+      assertEquals(0, ok("GET", "/activities", token, null).size());
+    }
+  }
+
+  @Test
+  void noteAndQuantityEditsPreservePausedMidnightSegments() throws Exception {
+    String token = user();
+    var request = activity("跨日暂停", true);
+    request.put("rule", null);
+    long activity = ok("POST", "/activities", token, request).path("id").asLong();
+    long timer =
+        ok(
+                "POST",
+                "/activities/" + activity + "/timer",
+                token,
+                Map.of("requestId", UUID.randomUUID()))
+            .path("id")
+            .asLong();
+    LocalDate first = LocalDate.now(ZoneId.of("Asia/Shanghai")).minusDays(2);
+    Instant start = first.atTime(23, 40).atZone(ZoneId.of("Asia/Shanghai")).toInstant();
+    String segments =
+        json.writeValueAsString(
+            List.of(
+                Map.of("start", start.toString(), "end", start.plusSeconds(600).toString()),
+                Map.of(
+                    "start",
+                    start.plusSeconds(1800).toString(),
+                    "end",
+                    start.plusSeconds(2400).toString())));
+    db.update(
+        "UPDATE tracker_timer SET started_at=?,running_since=NULL,state='PAUSED',segments=? WHERE"
+            + " id=?",
+        start.toString(),
+        segments,
+        timer);
+    var saved = ok("POST", "/timer/" + timer + "/finish", token, null);
+    long id = saved.path("id").asLong();
+    for (int quantity : List.of(1, 2)) {
+      ok(
+          "PUT",
+          "/records/" + id,
+          token,
+          Map.of(
+              "quantity",
+              quantity,
+              "startedAt",
+              saved.path("startedAt").asText(),
+              "durationSeconds",
+              1200,
+              "note",
+              "改备注"));
+      for (LocalDate date : List.of(first, first.plusDays(1)))
+        assertEquals(
+            600,
+            ok("GET", "/activities?period=DAY&date=" + date, token, null)
+                .get(0)
+                .path("summary")
+                .path("durationSeconds")
+                .asLong());
+    }
+    ok(
+        "PUT",
+        "/records/" + id,
+        token,
+        Map.of(
+            "quantity",
+            2,
+            "startedAt",
+            start.plusSeconds(60).toString(),
+            "durationSeconds",
+            1200,
+            "note",
+            "主动改开始时间"));
+    assertEquals(
+        1140,
+        ok("GET", "/activities?period=DAY&date=" + first, token, null)
+            .get(0)
+            .path("summary")
+            .path("durationSeconds")
+            .asLong());
+  }
+
+  @Test
+  void dayToWeekWaitsForMondayAndDoesNotReclassifyEarlierRecords() {
+    String token = user();
+    var request = activity("周期切换", false);
+    var daily = rule();
+    daily.put("period", "DAY");
+    daily.put("target", 10);
+    request.put("rule", daily);
+    long id = ok("POST", "/activities", token, request).path("id").asLong();
+    var record = entry();
+    record.put("quantity", 3);
+    ok("POST", "/activities/" + id + "/records", token, record);
+    var edited =
+        ok("PUT", "/activities/" + id, token, Map.of("name", "周期切换", "unit", "次", "rule", rule()));
+    LocalDate next =
+        LocalDate.now(ZoneId.of("Asia/Shanghai"))
+            .with(java.time.temporal.TemporalAdjusters.next(DayOfWeek.MONDAY));
+    assertEquals(next.toString(), edited.path("rules").get(1).path("effectiveFrom").asText());
+    var future = ok("GET", "/activities?date=" + next, token, null).get(0).path("summary");
+    assertEquals("EMPTY", future.path("status").asText());
+    assertEquals(0, future.path("count").asInt());
+  }
+
+  @Test
+  void allPeriodTransitionsUseAlignedBoundaries() {
+    String token = user();
+    LocalDate today = LocalDate.now(ZoneId.of("Asia/Shanghai"));
+    for (String outgoing : List.of("DAY", "WEEK"))
+      for (String incoming : List.of("DAY", "WEEK")) {
+        String name = outgoing + incoming;
+        var create = activity(name, false);
+        var old = rule();
+        old.put("period", outgoing);
+        create.put("rule", old);
+        long id = ok("POST", "/activities", token, create).path("id").asLong();
+        var next = rule();
+        next.put("period", incoming);
+        var edited =
+            ok("PUT", "/activities/" + id, token, Map.of("name", name, "unit", "次", "rule", next));
+        LocalDate expected =
+            outgoing.equals("WEEK") || incoming.equals("WEEK")
+                ? today.with(java.time.temporal.TemporalAdjusters.next(DayOfWeek.MONDAY))
+                : today.plusDays(1);
+        assertEquals(
+            expected.toString(), edited.path("rules").get(1).path("effectiveFrom").asText());
+      }
+  }
 }

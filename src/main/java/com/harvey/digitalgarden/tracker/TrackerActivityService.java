@@ -105,6 +105,8 @@ public class TrackerActivityService {
         current != null && current.period() != null
             ? current.period()
             : input.rule() != null ? input.rule().period() : Period.WEEK;
+    // A transition into or out of WEEK must align to both natural periods.
+    if (input.rule() != null && input.rule().period() == Period.WEEK) p = Period.WEEK;
     LocalDate from = TrackerSummary.start(today(u), p).plusDays(p == Period.WEEK ? 7 : 1);
     // Never replace past versions; repeated edits append a deterministic latest version.
     store.addRule(id, from, input.rule());
