@@ -385,6 +385,26 @@ class TrackerHttpTest {
   }
 
   @Test
+  void naturalHalfHourPersistsAndWrongDurationCannotWrite() throws Exception {
+    String token = user();
+    var goal = new TrackerGoalValidatorTest().halfHourGoal();
+    ((com.fasterxml.jackson.databind.node.ObjectNode) goal.get("rule")).put("sessionSeconds", 3600);
+    when(model.parse(anyString())).thenReturn(goal);
+    String text = "每周至少学习三次，每次至少半小时";
+    assertEquals(502, api("POST", "/goals/natural", token,
+        Map.of("requestId", UUID.randomUUID(), "text", text)).path("code").asInt());
+    assertEquals(0, ok("GET", "/activities", token, null).size());
+    ((com.fasterxml.jackson.databind.node.ObjectNode) goal.get("rule")).put("sessionSeconds", 1800);
+    var result = ok("POST", "/goals/natural", token,
+        Map.of("requestId", UUID.randomUUID(), "text", text));
+    assertEquals("CREATED", result.path("status").asText());
+    var stored = ok("GET", "/activities", token, null);
+    assertEquals(1, stored.size());
+    assertEquals(1800, stored.get(0).path("rules").get(0).path("sessionSeconds").asLong());
+    assertEquals(3, stored.get(0).path("rules").get(0).path("target").asLong());
+  }
+
+  @Test
   void concurrentStartsAndFinishRemainSingle() throws Exception {
     String token = user();
     long a = ok("POST", "/activities", token, activity("并发", true)).path("id").asLong();

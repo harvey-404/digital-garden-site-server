@@ -166,4 +166,54 @@ class TrackerGoalValidatorTest {
                 "I ran today; record that. My goal was every week run at least 3 sessions",
                 english(3, "3 sessions", false)));
   }
+
+  com.fasterxml.jackson.databind.node.ObjectNode halfHourGoal() {
+    var n = (com.fasterxml.jackson.databind.node.ObjectNode) english(3, "三次", true);
+    n.put("unit", "次");
+    n.put("periodEvidence", "每周");
+    n.put("directionEvidence", "至少");
+    n.put("sessionDirectionEvidence", "至少");
+    n.put("sessionEvidence", "半小时");
+    return n;
+  }
+
+  @Test
+  void suggestedHalfHourSessionHasExactSeconds() {
+    var result = validator.validate(UUID.randomUUID(), "每周至少学习三次，每次至少半小时", halfHourGoal());
+    assertEquals(3, result.rule().target());
+    assertEquals(1800, result.rule().sessionSeconds());
+  }
+
+  @Test
+  void periodicHalfHourAndHalfMinuteHaveExactSeconds() {
+    for (var entry : Map.of("半小时", 1800L, "半分钟", 30L).entrySet()) {
+      var n = halfHourGoal();
+      n.put("periodEvidence", "每天");
+      n.put("targetEvidence", entry.getKey());
+      var rule = (com.fasterxml.jackson.databind.node.ObjectNode) n.get("rule");
+      rule.put("period", "DAY").put("metric", "DURATION").put("target", entry.getValue());
+      rule.putNull("sessionDirection").putNull("sessionSeconds");
+      var result = validator.validate(UUID.randomUUID(), "每天至少冥想" + entry.getKey(), n);
+      assertEquals(entry.getValue(), result.rule().target());
+    }
+  }
+
+  @Test
+  void halfHourCannotGroundWrongSecondsOrRewrittenEvidence() {
+    var n = halfHourGoal();
+    ((com.fasterxml.jackson.databind.node.ObjectNode) n.get("rule")).put("sessionSeconds", 3600);
+    assertThrows(TrackerException.class, () -> validator.validate(UUID.randomUUID(), "每周至少学习三次，每次至少半小时", n));
+    ((com.fasterxml.jackson.databind.node.ObjectNode) n.get("rule")).put("sessionSeconds", 1800);
+    n.put("sessionEvidence", "30分钟");
+    assertThrows(TrackerException.class, () -> validator.validate(UUID.randomUUID(), "每周至少学习三次，每次至少半小时", n));
+  }
+
+  @Test
+  void halfHourCannotHideConflictingOrUndirectedDuration() {
+    for (String text : List.of(
+        "每周至少学习三次，每次至少半小时且最多一小时",
+        "每周至少学习三次，每次至少半小时，另加半分钟")) {
+      assertThrows(TrackerException.class, () -> validator.validate(UUID.randomUUID(), text, halfHourGoal()));
+    }
+  }
 }

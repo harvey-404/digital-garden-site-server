@@ -10,7 +10,7 @@ import java.util.regex.*;
  * accept or request clarification; it cannot create/replace model fields.
  */
 final class TrackerGoalGrounding {
-  private static final String NUMBER = "(?:[0-9]+(?:\\.[0-9]+)?|[零〇一二两三四五六七八九十百千万]+)";
+  private static final String NUMBER = TrackerGoalValidator.NUMBER;
   private static final String MAX = "最多|不超过|至多|上限|at most|no more than|maximum|max\\b";
   private static final String MIN = "至少|不少于|最低|at least|minimum|min\\b";
   private static final String DURATION =
@@ -72,7 +72,7 @@ final class TrackerGoalGrounding {
                 + MAX
                 + "|"
                 + MIN
-                + ")([^0-9零〇一二两三四五六七八九十百千万,，;；.!。!?？]{0,40}?)\\s*("
+                + ")([^0-9零〇一二两三四五六七八九十百千万半,，;；.!。!?？]{0,40}?)\\s*("
                 + NUMBER
                 + ")\\s*("
                 + units
@@ -82,8 +82,7 @@ final class TrackerGoalGrounding {
     Matcher match = condition.matcher(text);
     while (match.find()) {
       String quantity = match.group(3), foundUnit = match.group(4);
-      double value =
-          quantity.matches("[0-9].*") ? Double.parseDouble(quantity) : numbers.chinese(quantity);
+      double value = numbers.number(quantity);
       boolean duration =
           Pattern.compile("^(?:" + DURATION + ")$", Pattern.CASE_INSENSITIVE)
               .matcher(foundUnit)

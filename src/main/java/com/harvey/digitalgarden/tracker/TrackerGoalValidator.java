@@ -9,6 +9,9 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class TrackerGoalValidator {
+  static final String NUMBER =
+      "(?:[0-9]+(?:\\.[0-9]+)?|[零〇一二两三四五六七八九十百千万]+|(?<![0-9零〇一二两三四五六七八九十百千万个])半(?=\\s*(?:小时|分钟)))";
+
   public ActivityInput validate(UUID id, String text, JsonNode n) {
     var grounding = new TrackerGoalGrounding();
     text = grounding.effectiveText(text);
@@ -99,11 +102,10 @@ public class TrackerGoalValidator {
         || node.textValue().isBlank()
         || !text.contains(node.textValue())) throw new IllegalArgumentException();
     String evidence = node.textValue();
-    Matcher m = Pattern.compile("(?:[0-9]+(?:\\.[0-9]+)?|[零〇一二两三四五六七八九十百千万]+)").matcher(evidence);
+    Matcher m = Pattern.compile(NUMBER).matcher(evidence);
     boolean matches = false;
     while (m.find()) {
-      double value =
-          m.group().matches("[0-9].*") ? Double.parseDouble(m.group()) : chinese(m.group());
+      double value = number(m.group());
       String tail = evidence.substring(m.end()).stripLeading();
       if (duration) {
         if (tail.startsWith("小时") || tail.startsWith("hour")) value *= 3600;
@@ -116,6 +118,10 @@ public class TrackerGoalValidator {
       if (value == expected) matches = true;
     }
     if (!matches) throw new IllegalArgumentException();
+  }
+
+  double number(String s) {
+    return s.equals("半") ? 0.5 : s.matches("[0-9].*") ? Double.parseDouble(s) : chinese(s);
   }
 
   long chinese(String s) {
