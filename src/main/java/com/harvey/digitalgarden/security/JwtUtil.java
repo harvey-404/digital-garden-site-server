@@ -58,6 +58,12 @@ public class JwtUtil {
                 .compact();
     }
 
+    public String generateTrackerToken(long uid, String username) {
+        Date now = new Date();
+        return Jwts.builder().subject(username).claim("role", "TRACKER").claim("uid", uid)
+                .issuedAt(now).expiration(new Date(now.getTime() + expirationMs)).signWith(key).compact();
+    }
+
     public Claims parseClaims(String token) {
         return Jwts.parser()
                 .verifyWith(key)

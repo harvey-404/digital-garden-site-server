@@ -35,6 +35,8 @@ public class SecurityConfig {
             .cors(cors -> {})
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
+                .requestMatchers("/api/tracker/auth/register", "/api/tracker/auth/login").permitAll()
+                .requestMatchers("/api/tracker/**").hasRole("TRACKER")
                 .requestMatchers("/api/ledger/auth/invite").permitAll()
                 .requestMatchers("/api/ledger/**").hasRole("LEDGER")
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
@@ -45,6 +47,16 @@ public class SecurityConfig {
                 res.setContentType("application/json;charset=UTF-8");
                 res.getWriter().write(new ObjectMapper().writeValueAsString(
                         Result.error(ResultCode.UNAUTHORIZED, "未登录或登录已过期")));
+            }).accessDeniedHandler((req, res, ex) -> {
+                if (req.getRequestURI().startsWith("/api/tracker/")) {
+                    res.setStatus(200);
+                    res.setContentType("application/json;charset=UTF-8");
+                    res.getWriter().write(new ObjectMapper().writeValueAsString(
+                            Result.error(403, "此账号无权访问行为记录")));
+                } else {
+                    new org.springframework.security.web.access.AccessDeniedHandlerImpl()
+                            .handle(req, res, ex);
+                }
             }))
             .addFilterBefore(new JwtAuthFilter(jwtUtil),
                     UsernamePasswordAuthenticationFilter.class);

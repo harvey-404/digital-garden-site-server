@@ -32,7 +32,11 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 Claims claims = jwtUtil.parseClaims(token);
                 String role = claims.get("role", String.class);
                 UsernamePasswordAuthenticationToken auth;
-                if ("LEDGER".equals(role)) {
+                if ("TRACKER".equals(role)) {
+                    auth = new UsernamePasswordAuthenticationToken(
+                            new com.harvey.digitalgarden.tracker.TrackerPrincipal(claims.get("uid", Number.class).longValue(), claims.getSubject()),
+                            null, List.of(new SimpleGrantedAuthority("ROLE_TRACKER")));
+                } else if ("LEDGER".equals(role)) {
                     long uid = claims.get("uid", Number.class).longValue();
                     auth = new UsernamePasswordAuthenticationToken(
                             new LedgerPrincipal(uid, claims.getSubject()),

@@ -24,6 +24,9 @@ spring:
       max-request-size: 11MB
 
 app:
+  tracker:
+    ai-model: ${TRACKER_AI_MODEL:qwen-plus}
+    trusted-proxies: ${TRACKER_TRUSTED_PROXIES:127.0.0.1/32,::1/128}
   ledger-chat:
     model: ${LEDGER_CHAT_MODEL:}
     private-dir: ${LEDGER_CHAT_PRIVATE_DIR:./ledger-private}
