@@ -39,6 +39,8 @@ public class LedgerAuthInterceptor implements HandlerInterceptor {
             throw BusinessException.forbidden("ACCOUNT_DISABLED");
         }
 
+        if (Boolean.TRUE.equals(request.getAttribute(com.harvey.digitalgarden.ledger.chat.LedgerGuestService.ATTRIBUTE))) return true;
+
         if (!isOnboardingExempt(request, path) && !isOnboardingDone(user)) {
             throw BusinessException.forbidden("ONBOARDING_REQUIRED");
         }
@@ -60,6 +62,7 @@ public class LedgerAuthInterceptor implements HandlerInterceptor {
 
     private static boolean isOnboardingExempt(HttpServletRequest request, String path) {
         String method = request.getMethod();
+        if (path.startsWith("/api/ledger/chat/") || ("GET".equals(method) && "/api/ledger/categories".equals(path))) return true;
         if ("GET".equalsIgnoreCase(method) && "/api/ledger/auth/me".equals(path)) {
             return true;
         }

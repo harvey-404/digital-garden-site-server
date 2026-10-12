@@ -17,9 +17,11 @@ public class LedgerChatService {
     private final ChatDraftService drafts;
     private final LedgerChatModel model;
     private final LedgerChatAttachmentService attachments;
+    private final LedgerGuestService guests;
     record Lease(long uid,long messageId,String requestId,String attempt,long receivedAt,Long draftId,long version,Turn cached) {}
-    public LedgerChatService(ChatStore store,ChatDraftService drafts,LedgerChatModel model,LedgerChatAttachmentService attachments) {
+    public LedgerChatService(ChatStore store,ChatDraftService drafts,LedgerChatModel model,LedgerChatAttachmentService attachments,LedgerGuestService guests) {
         this.store=store;this.drafts=drafts;this.model=model;this.attachments=attachments;
+        this.guests=guests;
     }
     public History history(long uid,Long beforeId,int limit) {
         return store.tx(()->{
@@ -34,7 +36,7 @@ public class LedgerChatService {
             long aid=number(session,"active_draft_id");if(aid!=0) ids.add(aid);
             var persisted=ids.stream().map(id->store.draft(uid,id)).toList();
             return new History(messages,persisted,aid==0?null:store.draft(uid,aid),more?messages.getFirst().id():null,
-                number(session,"processing_until")>Instant.now().getEpochSecond()?(String)session.get("processing_request_id"):null,new Capabilities(model.available(),model.available()));
+                number(session,"processing_until")>Instant.now().getEpochSecond()?(String)session.get("processing_request_id"):null,new Capabilities(model.available(),model.available()),guests.view(uid));
         });
     }
     public RequestState requestState(long uid,String requestId) {
@@ -49,7 +51,8 @@ public class LedgerChatService {
     }
     private Turn cachedTurn(long uid,Map<String,Object> row) {
         Turn turn=store.read((String)row.get("response_json"),Turn.class);
-        return new Turn(turn.userMessage(),turn.assistantMessage(),turn.draft()==null?null:store.draft(uid,turn.draft().id()));
+        var assistant=store.db.queryForMap("SELECT * FROM ledger_chat_message WHERE user_id=? AND request_id=? AND role='assistant'",uid,row.get("request_id"));
+        return new Turn(store.message(row),store.message(assistant),turn.draft()==null?null:store.draft(uid,turn.draft().id()));
     }
     public Turn send(long uid,Send req) {
         if(req==null || req.requestId()==null || !req.requestId().matches("[a-zA-Z0-9_-]{1,64}"))throw BusinessException.badRequest("消息编号无效");
@@ -57,7 +60,6 @@ public class LedgerChatService {
         List<Long> imageIds=req.attachmentIds()==null?List.of():req.attachmentIds();
         if(text.length()>4000 || imageIds.size()>3 || new HashSet<>(imageIds).size()!=imageIds.size() || imageIds.stream().anyMatch(Objects::isNull) || (text.isBlank() && imageIds.isEmpty()))
             throw BusinessException.badRequest("请输入文字或图片，最多4000字和3张图片");
-        if(!model.available())throw BusinessException.badRequest("记账助手尚未配置，请先使用手动记账");
         String payloadHash=sha256(store.write(List.of(text,imageIds,req.expectedDraftVersion()==null?0:req.expectedDraftVersion())).getBytes(StandardCharsets.UTF_8));
         Lease lease=store.tx(()->{
             var session=store.lock(uid);
@@ -68,6 +70,8 @@ public class LedgerChatService {
                 if("DONE".equals(row.get("status")))return new Lease(uid,number(row,"id"),req.requestId(),"",number(row,"received_at"),null,0,cachedTurn(uid,row));
             }
             store.checkIdle(session);
+            guests.reserve(uid);
+            if(!model.available())throw BusinessException.badRequest("记账助手尚未配置，请先使用手动记账");
             long did=number(session,"active_draft_id");long version=did==0?0:number(store.ownedDraft(uid,did),"version");
             if((req.expectedDraftVersion()==null?0:req.expectedDraftVersion())!=version)throw BusinessException.conflict("内容已更新，请重新核对");
             for(Long id:imageIds)attachments.loadOwned(uid,id);
@@ -112,8 +116,11 @@ public class LedgerChatService {
             if(active!=(lease.draftId()==null?0:lease.draftId()) || (active!=0 && number(store.ownedDraft(uid,active),"version")!=lease.version()))throw BusinessException.conflict("草稿已更新，请重新核对");
             var userRow=store.db.queryForMap("SELECT * FROM ledger_chat_message WHERE user_id=? AND id=?",uid,lease.messageId());
             List<Long> sourceIds=store.ids((String)userRow.get("attachment_ids_json"));
+            if(output==null || !output.isObject())throw BusinessException.badRequest("识别结果不完整，请重试");
             String action=output.path("action").asText();
             if(!Set.of("APPEND","EDIT","CLARIFY").contains(action))throw BusinessException.badRequest("识别结果不完整，请重试");
+            if("CLARIFY".equals(action) && (!output.path("reply").isTextual() || output.path("reply").asText().isBlank()))throw BusinessException.badRequest("识别结果不完整，请重试");
+            if("APPEND".equals(action) && (!output.path("items").isArray() || output.path("items").isEmpty()))throw BusinessException.badRequest("识别结果不完整，请重试");
             Long did=lease.draftId();
             if("APPEND".equals(action) && output.path("items").isArray() && !output.path("items").isEmpty()) {
                 int count=(did==null?0:store.items(uid,did).size())+output.path("items").size();
@@ -148,7 +155,7 @@ public class LedgerChatService {
             long assistant=store.insert("INSERT INTO ledger_chat_message(user_id,session_id,role,request_id,text,status,draft_id,attachment_ids_json,received_at) VALUES(?,?,'assistant',?,?,'DONE',?,'[]',?)",uid,session.get("id"),lease.requestId(),reply,did,Instant.now().getEpochSecond());
             Turn turn=new Turn(store.message(store.db.queryForMap("SELECT * FROM ledger_chat_message WHERE id=?",lease.messageId())),store.message(store.db.queryForMap("SELECT * FROM ledger_chat_message WHERE id=?",assistant)),did==null?null:store.draft(uid,did));
             store.db.update("UPDATE ledger_chat_message SET response_json=? WHERE id=? AND user_id=?",store.write(turn),lease.messageId(),uid);
-            clear(uid);return turn;
+            guests.confirm(uid);clear(uid);return turn;
         });
     }
     private void clear(long uid) { store.db.update("UPDATE ledger_chat_session SET processing_request_id=NULL,processing_attempt=NULL,processing_until=0 WHERE user_id=?",uid); }

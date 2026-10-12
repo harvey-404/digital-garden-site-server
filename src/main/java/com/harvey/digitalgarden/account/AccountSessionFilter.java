@@ -16,6 +16,7 @@ public class AccountSessionFilter extends OncePerRequestFilter {
   private final AccountLinks links;
   private final AccountPolicy policy;
   private final ObjectMapper json;
+  private final com.harvey.digitalgarden.ledger.chat.LedgerGuestService guests;
   private final org.springframework.transaction.support.TransactionTemplate moduleTransaction;
 
   public AccountSessionFilter(
@@ -23,11 +24,13 @@ public class AccountSessionFilter extends OncePerRequestFilter {
       AccountLinks l,
       AccountPolicy p,
       ObjectMapper j,
-      org.springframework.transaction.PlatformTransactionManager manager) {
+      org.springframework.transaction.PlatformTransactionManager manager,
+      com.harvey.digitalgarden.ledger.chat.LedgerGuestService guests) {
     accounts = a;
     links = l;
     policy = p;
     json = j;
+    this.guests = guests;
     moduleTransaction = new org.springframework.transaction.support.TransactionTemplate(manager);
     // Authentication reads precede the mapping lock. A fresh snapshot after
     // waiting is required to see a just-committed binding and business records.
@@ -54,6 +57,23 @@ public class AccountSessionFilter extends OncePerRequestFilter {
     boolean requiredAccount =
         path.equals("/api/account/me") || path.startsWith("/api/account/links/");
     if (cookie != null && (ledger || tracker)) {
+      if (ledger && path.startsWith("/api/ledger/chat/")) {
+        try {
+          moduleTransaction.executeWithoutResult(status -> {
+            var a = accounts.authenticate(cookie);
+            r.setAttribute(AccountPolicy.ATTRIBUTE, a);
+            var principal = (com.harvey.digitalgarden.security.LedgerPrincipal) links.resolve(a, "ledger");
+            guests.migrate(com.harvey.digitalgarden.ledger.chat.LedgerGuestService.cookie(r), a.id(), principal.uid());
+            SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
+                principal, null, List.of(new SimpleGrantedAuthority("ROLE_LEDGER"))));
+          });
+        } catch (BusinessException e) { error(out, e.getCode(), e.getMessage()); return; }
+        catch (Exception e) { error(out, 503, "账号服务暂时不可用，请稍后重试"); return; }
+        // ChatStore checks the mapping again under the account lock for every write.
+        // The upstream model runs between short transactions without holding locks.
+        chain.doFilter(r, out);
+        return;
+      }
       // All module handlers are synchronous. Retain the account/mapping lock through
       // business writes, so proof-based binding cannot orphan an in-flight record.
       var buffered = new org.springframework.web.util.ContentCachingResponseWrapper(out);

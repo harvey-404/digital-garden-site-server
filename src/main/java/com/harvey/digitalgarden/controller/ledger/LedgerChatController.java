@@ -16,9 +16,12 @@ public class LedgerChatController {
     private final ChatDraftService drafts;
     private final ChatConfirmService confirmation;
     private final LedgerChatAttachmentService attachments;
-    public LedgerChatController(LedgerChatService chat,ChatDraftService drafts,ChatConfirmService confirmation,LedgerChatAttachmentService attachments) {
+    private final com.harvey.digitalgarden.ledger.chat.LedgerGuestService guests;
+    public LedgerChatController(LedgerChatService chat,ChatDraftService drafts,ChatConfirmService confirmation,LedgerChatAttachmentService attachments,com.harvey.digitalgarden.ledger.chat.LedgerGuestService guests) {
         this.chat=chat;this.drafts=drafts;this.confirmation=confirmation;this.attachments=attachments;
+        this.guests=guests;
     }
+    @GetMapping("/session") public Result<?> session(@AuthenticationPrincipal LedgerPrincipal p) {return Result.success(guests.view(p.uid()));}
     @GetMapping("/history") public Result<History> history(@AuthenticationPrincipal LedgerPrincipal p,@RequestParam(required=false)Long beforeId,@RequestParam(defaultValue="30")int limit) {return Result.success(chat.history(p.uid(),beforeId,limit));}
     @PostMapping("/messages") public Result<Turn> send(@AuthenticationPrincipal LedgerPrincipal p,@RequestBody Send request) {return Result.success(chat.send(p.uid(),request));}
     @GetMapping("/messages/by-request/{id}") public Result<RequestState> requestState(@AuthenticationPrincipal LedgerPrincipal p,@PathVariable String id) {return Result.success(chat.requestState(p.uid(),id));}

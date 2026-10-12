@@ -34,7 +34,7 @@ public final class ChatDtos {
                           long createdAt, String requestId, String status, Long draftId) {}
     public record Capabilities(boolean available, boolean imageInput) {}
     public record History(List<Message> messages, List<Draft> drafts, Draft activeDraft,
-                          Long nextBeforeId, String processingRequestId, Capabilities capabilities) {}
+                          Long nextBeforeId, String processingRequestId, Capabilities capabilities, LedgerGuestService.View guest) {}
     public record Send(String requestId, String text, List<Long> attachmentIds, Long expectedDraftVersion) {}
     public record Turn(Message userMessage, Message assistantMessage, Draft draft) {}
     public record Edit(long expectedVersion, String amount, Long categoryId, String description,

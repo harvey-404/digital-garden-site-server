@@ -46,6 +46,15 @@ public class ChatStore {
         catch(Exception ex) { throw new IllegalStateException("账本来源读取失败",ex); }
     }
     public Map<String,Object> lock(long uid) {
+        var attributes=org.springframework.web.context.request.RequestContextHolder.getRequestAttributes();
+        if(attributes instanceof org.springframework.web.context.request.ServletRequestAttributes request && request.getRequest().getAttribute(com.harvey.digitalgarden.account.AccountPolicy.ATTRIBUTE) instanceof com.harvey.digitalgarden.account.AccountService.Account account) {
+            db.queryForObject("SELECT id FROM site_account WHERE id=? FOR UPDATE",Long.class,account.id());
+            var mapping=db.queryForList("SELECT local_user_id FROM site_account_link WHERE account_id=? AND module='ledger'",Long.class,account.id());
+            if(mapping.isEmpty() || mapping.getFirst()!=uid)throw BusinessException.conflict("账本身份已更新，请刷新后重试");
+        }
+        return lockForMigration(uid);
+    }
+    Map<String,Object> lockForMigration(long uid) {
         var users=db.queryForList("SELECT id FROM ledger_user WHERE id=? AND is_deleted=0 AND status='active' FOR UPDATE",uid);
         if (users.isEmpty()) throw BusinessException.forbidden("ACCOUNT_DISABLED");
         db.update("INSERT IGNORE INTO ledger_chat_session(user_id) VALUES(?)",uid);

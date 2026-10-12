@@ -33,6 +33,8 @@ public class SecurityConfig {
             com.harvey.digitalgarden.account.AccountService accounts,
             com.harvey.digitalgarden.account.AccountLinks accountLinks,
             com.harvey.digitalgarden.account.AccountPolicy accountPolicy,
+            com.harvey.digitalgarden.ledger.chat.LedgerGuestService guests,
+            com.harvey.digitalgarden.tracker.TrackerClientAddress addresses,
             ObjectMapper json,
             org.springframework.transaction.PlatformTransactionManager manager) throws Exception {
         http
@@ -66,7 +68,9 @@ public class SecurityConfig {
             .addFilterBefore(new JwtAuthFilter(jwtUtil, accountLinks),
                     UsernamePasswordAuthenticationFilter.class);
         http.addFilterBefore(new com.harvey.digitalgarden.account.AccountSessionFilter(
-                accounts, accountLinks, accountPolicy, json, manager), JwtAuthFilter.class);
+                accounts, accountLinks, accountPolicy, json, manager, guests), JwtAuthFilter.class);
+        http.addFilterAfter(new com.harvey.digitalgarden.ledger.chat.LedgerGuestFilter(
+                guests, accountPolicy, addresses, json), JwtAuthFilter.class);
         return http.build();
     }
 }
