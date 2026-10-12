@@ -13,7 +13,7 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
-    show-sql: true
+    show-sql: false
     properties:
       hibernate:
         format_sql: true
@@ -21,9 +21,29 @@ spring:
   servlet:
     multipart:
       max-file-size: 10MB
-      max-request-size: 10MB
+      max-request-size: 11MB
 
 app:
+  account:
+    origin: ${SITE_ORIGIN:https://www.harvey404.com}
+    secure-cookie: ${ACCOUNT_SECURE_COOKIE:true}
+    service-key: ${SITE_AUTH_SERVICE_KEY:}
+    session-days: ${ACCOUNT_SESSION_DAYS:30}
+    code-secret: ${ACCOUNT_CODE_SECRET:${JWT_SECRET:change-me-to-a-long-random-secret-at-least-32-bytes-long}}
+    mail:
+      host: ${MAIL_HOST:smtpdm.aliyun.com}
+      port: ${MAIL_PORT:465}
+      username: ${MAIL_USERNAME:}
+      password: ${MAIL_PASSWORD:}
+      from: ${MAIL_FROM:}
+      ssl: ${MAIL_SSL:true}
+      daily-limit: ${MAIL_DAILY_LIMIT:200}
+  tracker:
+    ai-model: ${TRACKER_AI_MODEL:qwen-plus}
+    trusted-proxies: ${TRACKER_TRUSTED_PROXIES:127.0.0.1/32,::1/128}
+  ledger-chat:
+    model: ${LEDGER_CHAT_MODEL:}
+    private-dir: ${LEDGER_CHAT_PRIVATE_DIR:./ledger-private}
   jwt:
     secret: ${JWT_SECRET:change-me-to-a-long-random-secret-at-least-32-bytes-long}
     expiration-ms: 86400000
@@ -33,7 +53,7 @@ app:
     default-username: ${ADMIN_USERNAME:harvey}
     default-password: ${ADMIN_PASSWORD:admin123456}
   cors:
-    allowed-origins: ${CORS_ORIGINS:http://localhost:5173}
+    allowed-origins: ${CORS_ORIGINS:https://www.harvey404.com,http://localhost:5173}
   dashscope:
     api-key: ${DASHSCOPE_API_KEY:}
     embedding-model: ${DASHSCOPE_EMBEDDING_MODEL:text-embedding-v3}

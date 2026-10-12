@@ -1,0 +1,12 @@
+services:
+  mysql:
+    image: mysql:8
+    environment:
+      MYSQL_ROOT_PASSWORD: ledger_test_local
+      MYSQL_DATABASE: ledger_chat_test
+    ports:
+      - "127.0.0.1:33079:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-pledger_test_local"]
+      interval: 2s
+      retries: 30

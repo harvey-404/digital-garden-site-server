@@ -31,16 +31,18 @@ class LedgerAuthServiceTest {
 
     @Mock LedgerUserRepository userRepository;
     @Mock JwtUtil jwtUtil;
+    @Mock org.springframework.jdbc.core.JdbcTemplate accountDb;
 
     private LedgerAuthService service;
 
     @BeforeEach
     void setUp() {
-        service = new LedgerAuthService(userRepository, jwtUtil);
+        service = new LedgerAuthService(userRepository, jwtUtil, accountDb);
     }
 
     @Test
     void invite_normalizesCodeAndReturnsToken() {
+        when(accountDb.queryForObject(anyString(), org.mockito.ArgumentMatchers.eq(Integer.class), anyLong())).thenReturn(0);
         LedgerUser user = activeUser(1L, "L20260902-0001-ABCD1234", "ABCD-EFGH-JKLM");
         when(userRepository.findByInviteCode("ABCD-EFGH-JKLM")).thenReturn(Optional.of(user));
         when(jwtUtil.generateLedgerToken(1L, "L20260902-0001-ABCD1234")).thenReturn("ledger-jwt");

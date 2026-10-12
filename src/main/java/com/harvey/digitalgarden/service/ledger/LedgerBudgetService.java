@@ -39,6 +39,7 @@ public class LedgerBudgetService {
 
     @Transactional
     public long resolveBudget(long userId, long recordedAt) {
+        userRepository.lockById(userId);
         long period = LedgerTimeUtil.monthStartShanghai(recordedAt);
         Optional<LedgerBudget> existing =
                 budgetRepository.findByUserIdAndBudgetDtmAndIsDeletedFalse(userId, period);
@@ -69,6 +70,7 @@ public class LedgerBudgetService {
 
     @Transactional
     public LedgerBudgetVO activateMonth(long userId, String month) {
+        userRepository.lockById(userId);
         long period = parseMonthOrBadRequest(month);
         Optional<LedgerBudget> existing =
                 budgetRepository.findByUserIdAndBudgetDtmAndIsDeletedFalse(userId, period);

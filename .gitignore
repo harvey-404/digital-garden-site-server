@@ -5,3 +5,4 @@ uploads/
 .idea/
 *.iml
 .DS_Store
+ledger-private/

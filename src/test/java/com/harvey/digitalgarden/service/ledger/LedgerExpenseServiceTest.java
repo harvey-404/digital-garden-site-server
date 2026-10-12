@@ -102,6 +102,22 @@ class LedgerExpenseServiceTest {
     }
 
     @Test
+    void createExpense_rejectsExtraPrecisionBeforePersistence() {
+        BusinessException ex = assertThrows(BusinessException.class,
+            () -> service.createExpense(1L, request(5L, "x", "1.001", shanghai(2026, 9, 1, 0))));
+        assertEquals(ResultCode.BAD_REQUEST, ex.getCode());
+        verify(budgetService, never()).resolveBudget(anyLong(), anyLong());
+    }
+
+    @Test
+    void createExpense_rejectsExcessAmountBeforePersistence() {
+        BusinessException ex = assertThrows(BusinessException.class,
+            () -> service.createExpense(1L, request(5L, "x", "1000000", shanghai(2026, 9, 1, 0))));
+        assertEquals(ResultCode.BAD_REQUEST, ex.getCode());
+        verify(budgetService, never()).resolveBudget(anyLong(), anyLong());
+    }
+
+    @Test
     void createExpense_rejectsForeignCategory() {
         when(categoryRepository.findById(5L)).thenReturn(Optional.of(category(5L, 99L)));
 

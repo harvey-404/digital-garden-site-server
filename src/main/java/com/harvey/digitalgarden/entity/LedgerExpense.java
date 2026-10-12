@@ -13,6 +13,10 @@ import org.hibernate.annotations.SQLRestriction;
 @SQLRestriction("is_deleted = 0")
 public class LedgerExpense extends BaseEntity {
 
+    @Version
+    @Column(name = "record_version", nullable = false)
+    private Long recordVersion;
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
