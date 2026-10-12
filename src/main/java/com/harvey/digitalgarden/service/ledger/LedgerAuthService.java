@@ -21,10 +21,13 @@ public class LedgerAuthService {
 
     private final LedgerUserRepository userRepository;
     private final JwtUtil jwtUtil;
+    private final org.springframework.jdbc.core.JdbcTemplate accountDb;
 
-    public LedgerAuthService(LedgerUserRepository userRepository, JwtUtil jwtUtil) {
+    public LedgerAuthService(LedgerUserRepository userRepository, JwtUtil jwtUtil,
+            org.springframework.jdbc.core.JdbcTemplate accountDb) {
         this.userRepository = userRepository;
         this.jwtUtil = jwtUtil;
+        this.accountDb = accountDb;
     }
 
     public LedgerAuthResponse invite(String rawCode) {
@@ -42,6 +45,10 @@ public class LedgerAuthService {
 
         if (!"active".equals(user.getStatus())) {
             throw BusinessException.forbidden("ACCOUNT_DISABLED");
+        }
+
+        if (accountDb.queryForObject("SELECT COUNT(*) FROM site_account_link WHERE module='ledger' AND local_user_id=?", Integer.class, user.getId()) > 0) {
+            throw BusinessException.forbidden("此账号已绑定邮箱，请使用全站邮箱账号登录");
         }
 
         String token = jwtUtil.generateLedgerToken(user.getId(), user.getUserSn());

@@ -27,9 +27,10 @@ import org.springframework.test.context.jdbc.Sql;
       "spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.H2Dialect",
       "spring.jpa.hibernate.ddl-auto=create-drop",
       "spring.flyway.enabled=false"
+      , "app.account.legacy-registration-enabled=true"
     })
 @Sql(
-    scripts = "classpath:db/migration/V8__behavior_tracker.sql",
+    scripts = {"classpath:db/migration/V8__behavior_tracker.sql", "classpath:db/migration/V9__unified_account.sql"},
     executionPhase = Sql.ExecutionPhase.BEFORE_TEST_CLASS)
 class TrackerHttpTest {
   @LocalServerPort int port;

@@ -17,6 +17,8 @@ public class TrackerController {
   final TrackerActivityService activities;
   final TrackerRecordService records;
   final TrackerTimerService timers;
+  @org.springframework.beans.factory.annotation.Value("${app.account.legacy-registration-enabled:false}")
+  private boolean legacyRegistrationEnabled;
 
   public TrackerController(
       TrackerAuthService a,
@@ -41,6 +43,7 @@ public class TrackerController {
 
   @PostMapping("/auth/register")
   public Result<?> register(@RequestBody Credentials c, HttpServletRequest request) {
+    if (!legacyRegistrationEnabled) throw new TrackerException(410, "请在网站统一注册邮箱账号");
     auth.throttle(addresses.resolve(request));
     return Result.success(auth.register(c));
   }

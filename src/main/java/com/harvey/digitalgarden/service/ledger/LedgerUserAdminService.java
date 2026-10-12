@@ -31,6 +31,10 @@ public class LedgerUserAdminService {
     private final LedgerUserRepository userRepository;
     private final LedgerCategoryRepository categoryRepository;
 
+    public static List<String> defaultCategoryNames() {
+        return List.of(DEFAULT_CATEGORY_NAMES);
+    }
+
     public LedgerUserAdminService(
             LedgerUserRepository userRepository, LedgerCategoryRepository categoryRepository) {
         this.userRepository = userRepository;

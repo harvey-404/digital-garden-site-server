@@ -61,6 +61,8 @@ public class TrackerAuthService {
     if (rows.isEmpty()
         || !passwords.matches(c.password(), rows.getFirst().get("password_hash").toString()))
       throw new TrackerException(401, "用户名或密码不正确");
+    if (store.jdbc().queryForObject("SELECT COUNT(*) FROM site_account_link WHERE module='tracker' AND local_user_id=?", Integer.class, ((Number) rows.getFirst().get("id")).longValue()) > 0)
+      throw new TrackerException(403, "此账号已绑定邮箱，请使用全站邮箱账号登录");
     return auth(store.user(((Number) rows.getFirst().get("id")).longValue(), false));
   }
 

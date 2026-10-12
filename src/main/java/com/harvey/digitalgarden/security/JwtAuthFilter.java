@@ -15,9 +15,11 @@ import java.util.List;
 public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
+    private final com.harvey.digitalgarden.account.AccountLinks accountLinks;
 
-    public JwtAuthFilter(JwtUtil jwtUtil) {
+    public JwtAuthFilter(JwtUtil jwtUtil, com.harvey.digitalgarden.account.AccountLinks accountLinks) {
         this.jwtUtil = jwtUtil;
+        this.accountLinks = accountLinks;
     }
 
     @Override
@@ -25,6 +27,11 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                                     HttpServletResponse response,
                                     FilterChain filterChain)
             throws ServletException, IOException {
+        if (request.getAttribute(com.harvey.digitalgarden.account.AccountPolicy.ATTRIBUTE) != null
+                || request.getRequestURI().startsWith("/api/account/")) {
+            filterChain.doFilter(request, response);
+            return;
+        }
         String header = request.getHeader("Authorization");
         if (header != null && header.startsWith("Bearer ")) {
             String token = header.substring(7);
@@ -33,11 +40,15 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 String role = claims.get("role", String.class);
                 UsernamePasswordAuthenticationToken auth;
                 if ("TRACKER".equals(role)) {
+                    if (accountLinks.isBound("tracker", claims.get("uid", Number.class).longValue()))
+                        throw new IllegalArgumentException("Site login required");
                     auth = new UsernamePasswordAuthenticationToken(
                             new com.harvey.digitalgarden.tracker.TrackerPrincipal(claims.get("uid", Number.class).longValue(), claims.getSubject()),
                             null, List.of(new SimpleGrantedAuthority("ROLE_TRACKER")));
                 } else if ("LEDGER".equals(role)) {
                     long uid = claims.get("uid", Number.class).longValue();
+                    if (accountLinks.isBound("ledger", uid))
+                        throw new IllegalArgumentException("Site login required");
                     auth = new UsernamePasswordAuthenticationToken(
                             new LedgerPrincipal(uid, claims.getSubject()),
                             null,

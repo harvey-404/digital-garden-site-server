@@ -29,7 +29,12 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain filterChain(HttpSecurity http,
+            com.harvey.digitalgarden.account.AccountService accounts,
+            com.harvey.digitalgarden.account.AccountLinks accountLinks,
+            com.harvey.digitalgarden.account.AccountPolicy accountPolicy,
+            ObjectMapper json,
+            org.springframework.transaction.PlatformTransactionManager manager) throws Exception {
         http
             .csrf(csrf -> csrf.disable())
             .cors(cors -> {})
@@ -58,8 +63,10 @@ public class SecurityConfig {
                             .handle(req, res, ex);
                 }
             }))
-            .addFilterBefore(new JwtAuthFilter(jwtUtil),
+            .addFilterBefore(new JwtAuthFilter(jwtUtil, accountLinks),
                     UsernamePasswordAuthenticationFilter.class);
+        http.addFilterBefore(new com.harvey.digitalgarden.account.AccountSessionFilter(
+                accounts, accountLinks, accountPolicy, json, manager), JwtAuthFilter.class);
         return http.build();
     }
 }
