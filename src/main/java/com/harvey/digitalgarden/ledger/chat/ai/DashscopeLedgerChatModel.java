@@ -37,7 +37,9 @@ public class DashscopeLedgerChatModel implements LedgerChatModel {
             String context=json.writeValueAsString(Map.of("text",input.text(),"receivedAt",input.receivedAt(),"timezone","Asia/Shanghai","categories",input.categories(),"activeDraft",input.draft()==null?Map.of():input.draft(),"history",input.history().stream().map(m->Map.of("role",m.role(),"text",m.text().substring(0,Math.min(600,m.text().length())))).toList(),"attachmentIds",input.attachmentIds()));
             content.add(Map.of("type","text","text",context));
             for(var image:input.images()) content.add(Map.of("type","image_url","image_url",Map.of("url","data:image/png;base64,"+Base64.getEncoder().encodeToString(ChatImageNormalizer.forModel(image.bytes())))));
-            var body=Map.of("model",model,"stream",false,"temperature",0,"max_tokens",8192,"messages",List.of(Map.of("role","system","content",prompt),Map.of("role","user","content",content)));
+            var body=Map.of("model",model,"stream",false,"enable_thinking",false,
+                    "response_format",Map.of("type","json_object"),"temperature",0,"max_tokens",8192,
+                    "messages",List.of(Map.of("role","system","content",prompt),Map.of("role","user","content",content)));
             JsonNode response=client.post().uri("/chat/completions").header(HttpHeaders.AUTHORIZATION,"Bearer "+key).contentType(MediaType.APPLICATION_JSON).body(body).retrieve().body(JsonNode.class);
             if(response==null || !response.path("choices").isArray() || response.path("choices").isEmpty())throw new IllegalArgumentException();
             JsonNode choice=response.path("choices").get(0);
